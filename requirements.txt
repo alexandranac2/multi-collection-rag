@@ -1,0 +1,27 @@
+# --- Core LLM + RAG ---
+langchain
+langchain-community
+langchain-openai
+langgraph
+
+# --- FastAPI Backend ---
+fastapi
+uvicorn[standard]
+python-dotenv
+
+# --- Document Parsing (Docling + PDF fallback) ---
+docling
+pymupdf
+pdfminer.six
+
+# --- Embeddings + Vector DB (FAISS + Chroma) ---
+sentence-transformers
+faiss-cpu
+chromadb
+numpy
+tiktoken
+
+# --- Utilities ---
+requests
+pydantic
+pydantic-settings
