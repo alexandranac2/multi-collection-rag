@@ -48,7 +48,7 @@ class QAService:
             
             if trace and langfuse_service.enabled:
                 langfuse_service.track_embedding(
-                    trace_id=trace.id,
+                    trace=trace,
                     texts=[combined_text],
                     model=settings.OPENAI_EMBEDDING_MODEL
                 )
@@ -163,7 +163,7 @@ class QAService:
             
             if trace and langfuse_service.enabled:
                 langfuse_service.track_embedding(
-                    trace_id=trace.id,
+                    trace=trace,
                     texts=[query_text],
                     model=settings.OPENAI_EMBEDDING_MODEL
                 )
@@ -176,7 +176,7 @@ class QAService:
             
             if trace and langfuse_service.enabled:
                 langfuse_service.track_retrieval(
-                    trace_id=trace.id,
+                    trace=trace,
                     query=query_text,
                     results_count=len(results['ids'][0]) if results['ids'][0] else 0,
                     collection=self.collection_name

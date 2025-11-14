@@ -1,5 +1,5 @@
 """FastAPI application entry point."""
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
@@ -20,6 +20,7 @@ from app.services.document_service import DocumentService
 from app.services.qa_service import QAService
 from app.services.query_service import QueryService
 from app.services.langfuse_service import langfuse_service
+from app.context import set_user_id
 
 
 # Global instances
@@ -140,7 +141,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     print("🛑 Shutting down RAG API...")
     if langfuse_service.enabled:
-        langfuse_service.flush()
+        langfuse_service.shutdown()  # Use shutdown instead of flush for final cleanup
     print("✅ RAG API shut down")
 
 
@@ -160,6 +161,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Middleware to flush LangFuse events after each request
+@app.middleware("http")
+async def flush_langfuse_middleware(request, call_next):
+    """Flush LangFuse events after each request to ensure traces appear immediately."""
+    response = await call_next(request)
+    # Flush LangFuse events after each request
+    if langfuse_service.enabled and langfuse_service.client:
+        try:
+            # Flush synchronously to ensure events are sent
+            langfuse_service.client.flush()
+        except Exception as e:
+            print(f"❌ Warning: Failed to flush LangFuse events in middleware: {e}")
+    return response
 
 
 # Dependency to get services
@@ -191,6 +207,20 @@ def get_rag_instance() -> MultiCollectionRAG:
     return rag_instance
 
 
+def get_request_user_id(
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id")
+) -> str:
+    """
+    Extract user_id from X-User-Id header and set it in context.
+    If no header is provided, defaults to 'system'.
+    Clients should send: X-User-Id: <user_id>
+    """
+    # Use default 'system' if no header provided
+    user_id = x_user_id if x_user_id else "system"
+    set_user_id(user_id)
+    return user_id
+
+
 # Health check
 @app.get("/")
 async def root():
@@ -204,6 +234,23 @@ async def health():
     return {"status": "healthy"}
 
 
+@app.get("/health/langfuse")
+async def health_langfuse():
+    """LangFuse diagnostic endpoint."""
+    langfuse_status = {
+        "enabled": langfuse_service.enabled,
+        "client_initialized": langfuse_service.client is not None,
+        "public_key_set": bool(settings.LANGFUSE_PUBLIC_KEY),
+        "secret_key_set": bool(settings.LANGFUSE_SECRET_KEY),
+        "host": settings.LANGFUSE_HOST,
+        "public_key_preview": settings.LANGFUSE_PUBLIC_KEY[:10] + "..." if settings.LANGFUSE_PUBLIC_KEY else None,
+    }
+    return {
+        "langfuse": langfuse_status,
+        "message": "✅ LangFuse is ready" if langfuse_service.enabled else "⚠️ LangFuse is disabled - check your .env file"
+    }
+
+
 # Document endpoints
 @app.post("/api/documents", response_model=DocumentResponse, status_code=201)
 async def upload_document(
@@ -212,7 +259,8 @@ async def upload_document(
     doc_type: str = Form("general"),
     title: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
-    service: DocumentService = Depends(get_document_service)
+    service: DocumentService = Depends(get_document_service),
+    _user_id: str = Depends(get_request_user_id)
 ):
     """Upload and ingest a document."""
     try:
@@ -281,7 +329,8 @@ async def delete_document(
 @app.post("/api/qa", response_model=QAResponse, status_code=201)
 async def create_qa(
     qa_data: QACreate,
-    service: QAService = Depends(get_qa_service)
+    service: QAService = Depends(get_qa_service),
+    _user_id: str = Depends(get_request_user_id)
 ):
     """Create a Q&A pair."""
     try:
@@ -332,7 +381,8 @@ async def delete_qa(
 @app.post("/api/query", response_model=QueryResponse)
 async def query(
     request: QueryRequest,
-    service: QueryService = Depends(get_query_service)
+    service: QueryService = Depends(get_query_service),
+    _user_id: str = Depends(get_request_user_id)
 ):
     """Query the RAG system (searches both documents and Q&A)."""
     try:

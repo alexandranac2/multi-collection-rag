@@ -41,7 +41,7 @@ class QueryService:
             # Step 1: Search document collections
             if langfuse_service.enabled and trace:
                 doc_span = langfuse_service.create_span(
-                    trace_id=trace.id,
+                    trace=trace,
                     name="document_search"
                 )
             
@@ -94,7 +94,7 @@ class QueryService:
             
             if langfuse_service.enabled and trace:
                 langfuse_service.track_retrieval(
-                    trace_id=trace.id,
+                    trace=trace,
                     query=request.query_text,
                     results_count=len(doc_results),
                     collection="documents",
@@ -106,7 +106,7 @@ class QueryService:
             if request.include_qa:
                 if langfuse_service.enabled and trace:
                     qa_span = langfuse_service.create_span(
-                        trace_id=trace.id,
+                        trace=trace,
                         name="qa_search"
                     )
                 
@@ -167,7 +167,7 @@ class QueryService:
             
             if langfuse_service.enabled and trace:
                 langfuse_service.track_query(
-                    trace_id=trace.id,
+                    trace=trace,
                     query_text=request.query_text,
                     results=[r.model_dump() if hasattr(r, 'model_dump') else r.dict() for r in final_results],
                     metadata={
