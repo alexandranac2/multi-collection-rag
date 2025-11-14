@@ -1,6 +1,9 @@
 from pathlib import Path
 from typing import List, Dict
 from docling.document_converter import DocumentConverter
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import PdfFormatOption
 from .chunkers import get_chunker
 
 
@@ -8,7 +11,42 @@ class DocumentProcessor:
     """Handles document conversion and chunking."""
     
     def __init__(self):
-        self.converter = DocumentConverter()
+        # Configure converter to handle more formats
+        pipeline_options = PdfPipelineOptions()
+        pipeline_options.do_ocr = True
+        self.converter = DocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+            }
+        )
+    
+    def _process_text_file(self, file_path: Path):
+        """Process plain text files by converting to markdown (which Docling supports)."""
+        import tempfile
+        
+        # Read the text file
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Convert text to markdown format (Docling supports .md files)
+        # Wrap content in markdown format
+        md_content = content
+        
+        # Create a temporary .md file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False, encoding='utf-8') as tmp_file:
+            tmp_file.write(md_content)
+            tmp_md_path = Path(tmp_file.name)
+        
+        try:
+            # Use Docling to convert the markdown file
+            result = self.converter.convert(str(tmp_md_path))
+            return result.document
+        finally:
+            # Clean up temporary file
+            try:
+                tmp_md_path.unlink()
+            except:
+                pass
     
     def process(
         self,
@@ -25,8 +63,17 @@ class DocumentProcessor:
         
         Returns list of chunks with metadata.
         """
-        # Convert document
-        result = self.converter.convert(str(file_path))
+        # Handle .txt files specially since Docling doesn't support them
+        if file_path.suffix.lower() == '.txt':
+            result_document = self._process_text_file(file_path)
+            # Create a mock result object
+            class MockResult:
+                def __init__(self, doc):
+                    self.document = doc
+            result = MockResult(result_document)
+        else:
+            # Convert document using Docling for other formats
+            result = self.converter.convert(str(file_path))
         
         # Save recognized text if requested
         # Note: This only runs when file is processed (not cached), so recognize files

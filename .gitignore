@@ -38,6 +38,7 @@ env/
 chroma_db/
 *.cache.json
 .*.cache.json
+.document_registry.json
 
 # OS
 .DS_Store

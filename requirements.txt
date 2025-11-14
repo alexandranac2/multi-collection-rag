@@ -25,3 +25,7 @@ tiktoken
 requests
 pydantic
 pydantic-settings
+python-multipart
+
+# --- Observability ---
+langfuse
