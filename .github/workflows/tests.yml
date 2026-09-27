@@ -8,7 +8,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      # "true"/"false" only; the key itself is exposed to the eval step alone
+      HAS_OPENAI_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,5 +22,8 @@ jobs:
       - run: ruff format --check .
       - run: pytest -q
       # Real-embedding eval runs only when the repo has an OPENAI_API_KEY secret
-      - if: env.OPENAI_API_KEY != ''
+      - name: retrieval eval
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        if: env.HAS_OPENAI_KEY == 'true'
         run: python -m evals.retrieval_eval

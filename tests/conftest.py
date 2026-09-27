@@ -8,7 +8,8 @@ import math
 import os
 import re
 
-os.environ.setdefault("OPENAI_API_KEY", "test-key-not-used")
+# `or`, not setdefault: CI can export the variable as an empty string
+os.environ["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY") or "test-key-not-used"
 os.environ.pop("LANGFUSE_PUBLIC_KEY", None)
 os.environ.pop("LANGFUSE_SECRET_KEY", None)
 
