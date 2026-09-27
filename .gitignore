@@ -43,3 +43,9 @@ chroma_db/
 # OS
 .DS_Store
 Thumbs.db
+
+# Runtime state (vector DB, uploads, registry, hash caches)
+chroma_db/
+documents/
+.rag_state/
+.pytest_cache/

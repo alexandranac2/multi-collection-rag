@@ -1,31 +1,18 @@
-# --- Core LLM + RAG ---
-langchain
-langchain-community
-langchain-openai
-langgraph
+# API
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+pydantic>=2.7
+pydantic-settings>=2.3
+python-dotenv>=1.0
 
-# --- FastAPI Backend ---
-fastapi
-uvicorn[standard]
-python-dotenv
+# RAG
+openai>=1.40
+chromadb>=0.5
+docling>=2.30
 
-# --- Document Parsing (Docling + PDF fallback) ---
-docling
-pymupdf
-pdfminer.six
+# Observability (the service uses the v2 SDK: client.trace / trace.span)
+langfuse>=2.50,<3
 
-# --- Embeddings + Vector DB (FAISS + Chroma) ---
-sentence-transformers
-faiss-cpu
-chromadb
-numpy
-tiktoken
-
-# --- Utilities ---
-requests
-pydantic
-pydantic-settings
-python-multipart
-
-# --- Observability ---
-langfuse
+# Token counting for the hybrid chunker
+tiktoken>=0.7

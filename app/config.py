@@ -1,36 +1,35 @@
 """Configuration management for the RAG API."""
-import os
-from typing import Optional
-from pydantic_settings import BaseSettings
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Application settings."""
-    
-    # OpenAI Configuration
+    """Application settings, read from the environment / .env."""
+
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
+
+    # OpenAI
     OPENAI_API_KEY: str
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
-    
-    # LangFuse Configuration
-    LANGFUSE_PUBLIC_KEY: Optional[str] = None
-    LANGFUSE_SECRET_KEY: Optional[str] = None
+
+    # LangFuse (optional: tracing is off unless both keys are set)
+    LANGFUSE_PUBLIC_KEY: str | None = None
+    LANGFUSE_SECRET_KEY: str | None = None
     LANGFUSE_HOST: str = "https://cloud.langfuse.com"
-    
-    # ChromaDB Configuration
+
+    # Storage
     CHROMA_PERSIST_DIR: str = "./chroma_db"
-    
-    # Document Storage
     DOCUMENTS_BASE_PATH: str = "./documents"
-    
-    # Q&A Collection Name
+    STATE_DIR: str = "./.rag_state"  # document registry + per-collection hash caches
+
     QA_COLLECTION_NAME: str = "qa_history"
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"  # Ignore extra environment variables
+
+    # Security
+    API_KEY: str | None = None  # when set, every /api route requires X-API-Key
+    CORS_ORIGINS: list[str] = ["*"]
+    MAX_UPLOAD_MB: int = 25
+
+    LOG_LEVEL: str = "INFO"
 
 
-# Global settings instance
 settings = Settings()
-

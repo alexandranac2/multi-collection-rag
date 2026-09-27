@@ -1,554 +1,132 @@
-# RAG Package 🚀
+# Multi-Collection RAG API
 
-A production-ready, multi-collection RAG (Retrieval-Augmented Generation) system that you can reuse across all your projects. Built with Docling, ChromaDB, and OpenAI embeddings.
+[![tests](https://github.com/alexandranac2/multi-collection-rag/actions/workflows/tests.yml/badge.svg)](https://github.com/alexandranac2/multi-collection-rag/actions/workflows/tests.yml)
 
-Perfect for handling multiple document types: user manuals, company policies, legal contracts, and more — all in separate, queryable collections.
+A document search service for mixed internal documents — manuals, policies,
+contracts — where each document type gets its own collection and chunking, and
+curated Q&A answers compete with document passages in a single ranked result.
 
-## ✨ Features
+**Stack:** FastAPI · Docling (PDF/DOCX/PPTX/HTML/MD/TXT, OCR for scanned PDFs) ·
+ChromaDB · OpenAI `text-embedding-3-small` · LangFuse tracing (optional)
 
-- 🗂️ **Multi-Collection Support** - Separate collections for different document types
-- 📄 **Smart Document Processing** - Powered by Docling (PDF, DOCX, PPTX, HTML, MD, TXT)
-- 🧩 **Flexible Chunking** - Hybrid and Hierarchical strategies
-- 💾 **Intelligent Caching** - SHA256-based caching to skip unchanged files
-- 🔍 **Powerful Querying** - Query specific collections, document types, or all at once
-- 📦 **Plug & Play** - Easy to integrate into any project
+## What it does
 
----
+- **Collections per document type.** A policy handbook and a device manual chunk
+  differently; each collection keeps its own strategy and chunk size, persisted in
+  Chroma so a restart re-attaches it exactly as created.
+- **Structure-aware chunking** via Docling:
+  - `hybrid` — follows headings/paragraphs/tables, then splits or merges to at most
+    `chunk_size` tokens, counted with the embedding model's own tokenizer (`cl100k_base`)
+  - `hierarchical` — one chunk per structural element, no size cap
+- **Curated Q&A.** Store question/answer pairs; they are embedded and ranked on the
+  same cosine scale as document chunks, so a human-written answer wins when it is the
+  closest match.
+- **Citations.** Every result carries filename, collection, document type and page
+  number (for paged formats).
+- **Incremental ingestion.** Files are SHA-256 hashed; unchanged files are never
+  re-embedded, and re-indexing replaces a file's old chunks instead of duplicating them.
 
-## 📦 Installation
-
-### 1. Clone or Copy the Package
-
-```bash
-# Copy the rag_package folder to your project
-cp -r rag_package /path/to/your/project/
+```mermaid
+flowchart LR
+    U[Upload] --> V[validate name, type, size] --> D[Docling convert + OCR] --> C[chunk] --> E[embed] --> S[(Chroma collection)]
+    Q[Query] --> QE[embed] --> S
+    QE --> QA[(Q&A collection)]
+    S --> M[merge by cosine distance]
+    QA --> M --> R[best hit or top-n + citations]
 ```
 
-### 2. Install Dependencies
+## Run it
 
 ```bash
-pip install openai chromadb docling python-dotenv
-```
-
-Or use the provided `requirements.txt`:
-
-```bash
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env     # add OPENAI_API_KEY
+uvicorn app.main:app --reload     # http://localhost:8000/docs
 ```
 
-### 3. Install as Editable Package (Recommended)
+The first PDF triggers a one-off download of Docling's layout/OCR models.
 
 ```bash
-# From the directory containing setup.py
-pip install -e .
+# Upload into a collection (created on first use)
+curl -F file=@handbook.pdf -F folder_name=hr-policies -F doc_type=policy \
+  localhost:8000/api/documents
+
+# Add a curated answer
+curl -H 'Content-Type: application/json' localhost:8000/api/qa \
+  -d '{"question": "How many vacation days do I get?", "answer": "25 per year.", "tags": ["hr"]}'
+
+# Search everything (best hit), or everything up to n_results
+curl -H 'Content-Type: application/json' localhost:8000/api/query \
+  -d '{"query_text": "vacation carry-over", "return_all": true, "n_results": 5, "doc_types": ["policy"]}'
 ```
 
-This allows you to import the package anywhere: `from rag_package import MultiCollectionRAG`
+### Endpoints
 
-### 4. Set Up Environment Variables
+| | Path | |
+|---|---|---|
+| `POST` | `/api/documents` | Upload + index (multipart: `file`, `folder_name`, `doc_type`, `title`, `description`) |
+| `GET` `PUT` `DELETE` | `/api/documents[/{id}]` | List / get, update metadata or move to another collection (re-indexes), delete file + chunks |
+| `POST` `GET` `DELETE` | `/api/qa[/{id}]` | Curated Q&A pairs (`limit` / `offset` paging) |
+| `POST` | `/api/query` | Search documents and Q&A; filter by `collections`, `doc_types` |
+| `GET` `POST` | `/api/collections[/{name}]` | List, inspect, create with `chunking_strategy` + `chunk_size` |
+| `GET` | `/health`, `/health/langfuse` | Liveness, tracing status |
 
-Create a `.env` file in your project root:
+## Security
+
+- Collection names are restricted to `[A-Za-z0-9_-]` (3–63 chars) and every path is
+  resolved and checked against the documents directory, so neither a collection name
+  nor an uploaded filename can write outside it.
+- Uploads are limited by extension and size (`MAX_UPLOAD_MB`, default 25).
+- Set `API_KEY` to require an `X-API-Key` header on every `/api` route
+  (constant-time comparison). `X-User-Id` is only a label for traces, never used for access.
+- Errors are logged server-side; clients get a generic message, never exception text.
+- CORS origins are configurable (`CORS_ORIGINS`); credentials are not allowed.
+
+## Tests
 
 ```bash
-OPENAI_API_KEY=your-openai-api-key-here
+pip install -r requirements-dev.txt
+pytest -q
+ruff check . && ruff format --check .
 ```
 
----
+38 tests run against **real Chroma and real Docling** with OpenAI embeddings replaced
+by a deterministic bag-of-words hash, so they need no API key. They cover path
+traversal and upload limits, API-key auth, error redaction, ingestion and
+re-indexing, filename collisions, moving and deleting documents, restart
+persistence, filtering, and Q&A ranking against documents.
+
+## Retrieval eval
+
+`evals/` holds a small fictional corpus — an employee handbook, a router manual and
+a services agreement, one collection each — and 20 labelled questions phrased the
+way people actually ask ("How long is maternity leave?" for a section titled
+*Parental leave*). For each chunking strategy it reports whether the right document
+and a chunk containing the expected answer are ranked 1st / in the top 3, plus MRR.
 
-## 🚀 Quick Start
-
-```python
-from rag_package import MultiCollectionRAG
-
-# 1. Initialize the RAG system
-rag = MultiCollectionRAG(
-    chroma_persist_dir="./chroma_db",
-    embedding_model="text-embedding-3-small"
-)
-
-# 2. Add your document collections
-rag.add_collection(
-    collection_name="user_manuals",
-    docs_path="./documents/manuals",
-    doc_type="manual",
-    chunk_size=600,
-    chunking_strategy="hierarchical"
-)
-
-rag.add_collection(
-    collection_name="policies",
-    docs_path="./documents/policies",
-    doc_type="policy",
-    chunk_size=800,
-    chunking_strategy="hierarchical"
-)
-
-# 3. Ingest documents (one-time setup)
-rag.ingest_all()
-
-# 4. Query your documents
-results = rag.query_combined(
-    "How do I reset my password?",
-    n_results=5
-)
-
-for result in results:
-    print(f"📄 {result['metadata']['filename']}")
-    print(f"   {result['text'][:200]}...")
-    print(f"   Score: {result['distance']:.4f}\n")
-```
-
----
-
-## 📖 Detailed Usage
-
-### Adding Collections
-
-Each collection represents a distinct set of documents with its own configuration:
-
-```python
-rag.add_collection(
-    collection_name="legal_contracts",      # Unique identifier
-    docs_path="./docs/contracts",           # Folder with documents
-    doc_type="contract",                    # Type tag for filtering
-    chunk_size=800,                         # Tokens per chunk
-    chunk_overlap=50,                       # Overlap between chunks
-    chunking_strategy="hierarchical"        # "hybrid" or "hierarchical"
-)
-```
-
-**Chunking Strategies:**
-
-- **`hierarchical`** - Respects document structure (sections, lists). Best for legal docs, manuals, policies.
-- **`hybrid`** - Token-aware + structure-aware. Good for general documents.
-
-**Recommended Settings:**
-
-| Document Type    | Chunk Size | Overlap | Strategy       |
-|-----------------|------------|---------|----------------|
-| Legal Contracts | 800        | 50      | hierarchical   |
-| User Manuals    | 600        | 100     | hierarchical   |
-| Company Policies| 800        | 100     | hierarchical   |
-| General Docs    | 512        | 128     | hybrid         |
-
----
-
-### Ingesting Documents
-
-**Ingest all collections:**
-```python
-rag.ingest_all()
-```
-
-**Ingest a specific collection:**
-```python
-rag.ingest_collection("user_manuals")
-```
-
-**Force re-indexing (ignores cache):**
-```python
-rag.ingest_all(force_reindex=True)
-```
-
-**Caching:**
-- SHA256 hashes track file changes
-- Only modified files are re-processed
-- Cache files: `.{collection_name}_cache.json`
-
----
-
-### Querying Documents
-
-#### 1. Query All Collections (Combined Results)
-
-```python
-results = rag.query_combined(
-    query_text="What is the vacation policy?",
-    n_results=5  # Top 5 results across all collections
-)
-```
-
-#### 2. Query Specific Collections
-
-```python
-results = rag.query(
-    query_text="How to install the software?",
-    collections=["user_manuals", "installation_guides"],
-    n_results=3
-)
-
-# Returns: {"user_manuals": [...], "installation_guides": [...]}
-```
-
-#### 3. Query by Document Type
-
-```python
-results = rag.query(
-    query_text="What are the security requirements?",
-    doc_types=["policy", "contract"],  # Filter by type
-    n_results=5
-)
-```
-
-#### 4. Advanced Filtering
-
-```python
-results = rag.query(
-    query_text="password reset procedure",
-    collections=["user_manuals"],
-    n_results=10
-)
-
-for coll_name, coll_results in results.items():
-    print(f"\n📁 Collection: {coll_name}")
-    for r in coll_results:
-        print(f"  • {r['metadata']['filename']}: {r['distance']:.4f}")
-```
-
----
-
-### Working with Results
-
-Each result contains:
-
-```python
-{
-    'text': 'The chunk text content...',
-    'metadata': {
-        'source': '/path/to/file.pdf',
-        'filename': 'file.pdf',
-        'doc_type': 'manual',
-        'collection': 'user_manuals',
-        'page': 5
-    },
-    'distance': 0.234,  # Lower = more similar
-    'id': 'user_manuals_file_0',
-    'collection': 'user_manuals'
-}
-```
-
-**Example: Display results nicely**
-
-```python
-def display_results(results):
-    for i, r in enumerate(results, 1):
-        print(f"\n{'='*60}")
-        print(f"Result {i} | Score: {r['distance']:.4f}")
-        print(f"Source: {r['metadata']['filename']}")
-        print(f"Type: {r['metadata']['doc_type']}")
-        if r['metadata']['page']:
-            print(f"Page: {r['metadata']['page']}")
-        print(f"\nContent:\n{r['text'][:300]}...")
-
-results = rag.query_combined("expense reimbursement", n_results=3)
-display_results(results)
-```
-
----
-
-### Managing Collections
-
-**List all collections:**
-```python
-rag.list_collections()
-
-# Output:
-# 📚 Collections:
-#   • user_manuals: 245 chunks (manual)
-#   • policies: 89 chunks (policy)
-#   • contracts: 156 chunks (contract)
-```
-
-**Check collection info:**
-```python
-# Get count for a specific collection
-count = rag.collections["user_manuals"].count()
-print(f"User manuals: {count} chunks")
-```
-
----
-
-## 🏗️ Project Structure
-
-```
-your_project/
-├── rag_package/
-│   ├── __init__.py
-│   ├── rag.py              # Main RAG class
-│   ├── collection.py       # Collection management
-│   ├── processor.py        # Document processing
-│   ├── cache.py            # Caching logic
-│   ├── chunkers.py         # Chunking strategies
-│   └── utils.py            # Helper functions
-├── documents/
-│   ├── manuals/
-│   │   ├── user_guide.pdf
-│   │   └── admin_manual.docx
-│   ├── policies/
-│   │   └── hr_policy.pdf
-│   └── contracts/
-│       └── vendor_agreement.pdf
-├── chroma_db/              # Vector database (auto-created)
-├── .user_manuals_cache.json  # Cache files (auto-created)
-├── .policies_cache.json
-├── .env                    # Environment variables
-├── setup.py
-├── requirements.txt
-└── main.py                 # Your application
-```
-
----
-
-## 🔧 Configuration Options
-
-### RAG Initialization
-
-```python
-rag = MultiCollectionRAG(
-    chroma_persist_dir="./chroma_db",           # Where to store vector DB
-    embedding_model="text-embedding-3-small",   # OpenAI embedding model
-    openai_api_key="sk-..."                     # Optional, uses .env if not provided
-)
-```
-
-### Collection Configuration
-
-```python
-rag.add_collection(
-    collection_name="my_docs",          # Unique name (required)
-    docs_path="./documents",            # Path to documents (required)
-    doc_type="general",                 # "manual", "policy", "contract", "general"
-    chunk_size=512,                     # Tokens per chunk (default: 512)
-    chunk_overlap=128,                  # Overlap tokens (default: 128)
-    chunking_strategy="hybrid"          # "hybrid" or "hierarchical"
-)
-```
-
----
-
-## 💡 Use Cases
-
-### Use Case 1: Customer Support Bot
-
-```python
-# Setup
-rag = MultiCollectionRAG()
-rag.add_collection("help_docs", "./help", doc_type="manual")
-rag.add_collection("faqs", "./faqs", doc_type="general")
-rag.ingest_all()
-
-# Query
-def answer_question(question):
-    results = rag.query_combined(question, n_results=3)
-    
-    # Pass results to LLM for final answer
-    context = "\n\n".join([r['text'] for r in results])
-    return generate_answer(question, context)
-```
-
-### Use Case 2: Legal Document Search
-
-```python
-# Setup with large chunks for legal precision
-rag = MultiCollectionRAG()
-rag.add_collection(
-    "contracts",
-    "./legal/contracts",
-    doc_type="contract",
-    chunk_size=1000,
-    chunk_overlap=50,
-    chunking_strategy="hierarchical"
-)
-rag.ingest_all()
-
-# Query specific contract clauses
-results = rag.query(
-    "limitation of liability clauses",
-    collections=["contracts"],
-    n_results=10
-)
-```
-
-### Use Case 3: Multi-Department Knowledge Base
-
-```python
-# Setup
-rag = MultiCollectionRAG()
-rag.add_collection("hr_policies", "./hr", doc_type="policy")
-rag.add_collection("it_manuals", "./it", doc_type="manual")
-rag.add_collection("finance_docs", "./finance", doc_type="policy")
-rag.ingest_all()
-
-# Route query to correct department
-def smart_search(query, department=None):
-    if department:
-        collection_map = {
-            "hr": ["hr_policies"],
-            "it": ["it_manuals"],
-            "finance": ["finance_docs"]
-        }
-        collections = collection_map.get(department)
-    else:
-        collections = None  # Search all
-    
-    return rag.query_combined(query, collections=collections)
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Issue: "OPENAI_API_KEY not found"
-
-**Solution:** Create a `.env` file:
 ```bash
-echo "OPENAI_API_KEY=your-key-here" > .env
+python -m evals.retrieval_eval                    # real embeddings, needs OPENAI_API_KEY (~$0.001)
+python -m evals.retrieval_eval --fake-embeddings  # offline check that the harness runs
 ```
 
-### Issue: "Collection not found"
+On this corpus every section fits inside one chunk, so both strategies produce the
+same chunks; the comparison becomes informative with longer documents. CI runs the
+eval when the repository has an `OPENAI_API_KEY` secret.
 
-**Solution:** Make sure you call `add_collection()` before querying:
-```python
-rag.add_collection("my_docs", "./documents")
-rag.ingest_collection("my_docs")
+## Layout
+
+```
+app/            FastAPI app: routes, settings, validation, services
+rag_package/    the reusable library (collections, Docling processing, chunkers, cache)
+examples/       using rag_package without the API
+evals/          labelled retrieval eval + fictional corpus
+tests/
 ```
 
-### Issue: No results returned
+## Limitations
 
-**Check:**
-1. Documents were ingested: `rag.list_collections()`
-2. Supported formats: PDF, DOCX, PPTX, HTML, MD, TXT
-3. Try broader query or increase `n_results`
-
-### Issue: Out of memory during ingestion
-
-**Solutions:**
-1. Process collections one at a time:
-   ```python
-   rag.ingest_collection("collection1")
-   rag.ingest_collection("collection2")
-   ```
-2. Reduce chunk size to generate fewer embeddings per document
-
-### Issue: Slow queries
-
-**Solutions:**
-1. Query specific collections instead of all
-2. Reduce `n_results`
-3. Consider using FAISS instead of ChromaDB for larger datasets
-
----
-
-## 📚 API Reference
-
-### `MultiCollectionRAG`
-
-**Methods:**
-- `add_collection(...)` - Add a document collection
-- `ingest_collection(name, force_reindex=False)` - Ingest one collection
-- `ingest_all(force_reindex=False)` - Ingest all collections
-- `query(query_text, collections=None, doc_types=None, n_results=5)` - Query collections
-- `query_combined(query_text, collections=None, doc_types=None, n_results=5)` - Query and combine results
-- `list_collections()` - Display all collections
-
----
-
-## 🔄 Updating Documents
-
-The system automatically detects file changes via SHA256 hashing:
-
-```python
-# Add new documents to your folders
-# documents/manuals/new_guide.pdf
-
-# Run ingestion again - only new/changed files are processed
-rag.ingest_all()
-```
-
-**To force complete re-indexing:**
-```python
-rag.ingest_all(force_reindex=True)
-```
-
----
-
-## 📝 Example: Complete Application
-
-```python
-from rag_package import MultiCollectionRAG
-from dotenv import load_dotenv
-
-load_dotenv()
-
-def main():
-    # Initialize
-    print("🚀 Initializing RAG system...")
-    rag = MultiCollectionRAG()
-    
-    # Add collections
-    rag.add_collection(
-        "user_manuals",
-        "./docs/manuals",
-        doc_type="manual",
-        chunk_size=600,
-        chunking_strategy="hierarchical"
-    )
-    
-    rag.add_collection(
-        "company_policies",
-        "./docs/policies",
-        doc_type="policy",
-        chunk_size=800,
-        chunking_strategy="hierarchical"
-    )
-    
-    # Ingest
-    print("\n📥 Ingesting documents...")
-    rag.ingest_all()
-    
-    # Display collections
-    rag.list_collections()
-    
-    # Interactive query loop
-    print("\n💬 Ask questions (type 'quit' to exit):")
-    while True:
-        query = input("\nYour question: ")
-        if query.lower() in ['quit', 'exit', 'q']:
-            break
-        
-        results = rag.query_combined(query, n_results=3)
-        
-        print(f"\n📊 Found {len(results)} results:")
-        for i, r in enumerate(results, 1):
-            print(f"\n{i}. {r['metadata']['filename']} (Score: {r['distance']:.4f})")
-            print(f"   {r['text'][:200]}...")
-
-if __name__ == "__main__":
-    main()
-```
-
----
-
-## 🤝 Contributing
-
-This is a reusable package for your projects. Feel free to modify and extend it!
-
----
-
-## 📄 License
-
-MIT License - Use freely in your projects!
-
----
-
-## 🆘 Support
-
-For issues or questions:
-1. Check the troubleshooting section
-2. Review the examples
-3. Check ChromaDB/Docling documentation
-
----
-
-**Built with ❤️ using Docling, ChromaDB, and OpenAI**
-# p1-ai-compliance-security
+- Single process: the document registry is a JSON file and the vector store is local
+  Chroma — no multi-worker or multi-instance deployment.
+- One shared API key rather than per-user auth; no rate limiting.
+- Retrieval only — the API returns ranked passages and citations; answer generation
+  is left to the caller.
