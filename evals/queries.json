@@ -1,0 +1,22 @@
+[
+  {"query": "How many days a week can I work from home?", "file": "employee_handbook.md", "answer": "three days per week"},
+  {"query": "Do unused holidays roll over?", "file": "employee_handbook.md", "answer": "carry over"},
+  {"query": "When do I need a doctor's note?", "file": "employee_handbook.md", "answer": "three consecutive"},
+  {"query": "How long is maternity leave?", "file": "employee_handbook.md", "answer": "20 weeks"},
+  {"query": "What is the daily food allowance on business trips?", "file": "employee_handbook.md", "answer": "60 EUR"},
+  {"query": "How often do we get a new laptop?", "file": "employee_handbook.md", "answer": "every three years"},
+  {"query": "What are the password requirements?", "file": "employee_handbook.md", "answer": "14 characters"},
+  {"query": "What are the core working hours?", "file": "employee_handbook.md", "answer": "10:00 to 16:00"},
+  {"query": "How do I reset the router to factory settings?", "file": "router_manual.md", "answer": "10 seconds"},
+  {"query": "Where do I find the wifi password?", "file": "router_manual.md", "answer": "sticker"},
+  {"query": "The light on the box is orange, what does that mean?", "file": "router_manual.md", "answer": "overheating"},
+  {"query": "Is water damage covered by the guarantee?", "file": "router_manual.md", "answer": "not covered"},
+  {"query": "When do software updates happen?", "file": "router_manual.md", "answer": "02:00 and 04:00"},
+  {"query": "Which network band has better range?", "file": "router_manual.md", "answer": "2.4 GHz"},
+  {"query": "How much notice is needed to cancel the contract?", "file": "service_agreement.md", "answer": "90 days"},
+  {"query": "What happens if uptime drops below the SLA?", "file": "service_agreement.md", "answer": "service credit"},
+  {"query": "What are the payment terms for invoices?", "file": "service_agreement.md", "answer": "45 days"},
+  {"query": "Is liability limited?", "file": "service_agreement.md", "answer": "12 months"},
+  {"query": "Which country's law applies?", "file": "service_agreement.md", "answer": "Netherlands"},
+  {"query": "Does the agreement renew automatically?", "file": "service_agreement.md", "answer": "renews automatically"}
+]

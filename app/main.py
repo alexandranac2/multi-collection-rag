@@ -1,16 +1,14 @@
 """FastAPI application entry point."""
+
 import logging
 import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
 
 import uvicorn
 from fastapi import APIRouter, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
-from rag_package import MultiCollectionRAG
 
 from app.config import settings
 from app.context import set_user_id
@@ -33,14 +31,15 @@ from app.services.langfuse_service import langfuse_service
 from app.services.qa_service import QAService
 from app.services.query_service import QueryService
 from app.validation import validate_collection_name
+from rag_package import MultiCollectionRAG
 
 logging.basicConfig(level=settings.LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-rag_instance: Optional[MultiCollectionRAG] = None
-document_service: Optional[DocumentService] = None
-qa_service: Optional[QAService] = None
-query_service: Optional[QueryService] = None
+rag_instance: MultiCollectionRAG | None = None
+document_service: DocumentService | None = None
+qa_service: QAService | None = None
+query_service: QueryService | None = None
 
 
 def load_existing_collections(rag: MultiCollectionRAG) -> None:
@@ -100,13 +99,14 @@ app.add_middleware(
 
 # --- dependencies -------------------------------------------------------------
 
-def require_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")) -> None:
+
+def require_api_key(x_api_key: str | None = Header(None, alias="X-API-Key")) -> None:
     """When API_KEY is configured, every /api route requires a matching X-API-Key header."""
     if settings.API_KEY and not (x_api_key and secrets.compare_digest(x_api_key, settings.API_KEY)):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
-def get_request_user_id(x_user_id: Optional[str] = Header(None, alias="X-User-Id")) -> str:
+def get_request_user_id(x_user_id: str | None = Header(None, alias="X-User-Id")) -> str:
     """
     Caller label for LangFuse traces. This is attribution only, not authentication:
     the header is client-supplied and never used for access control.
@@ -140,6 +140,7 @@ def get_rag_instance() -> MultiCollectionRAG:
 
 # --- errors -------------------------------------------------------------------
 
+
 @app.exception_handler(DocumentError)
 async def document_error_handler(request, exc: DocumentError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
@@ -154,6 +155,7 @@ async def unhandled_error_handler(request, exc: Exception):
 
 # --- health -------------------------------------------------------------------
 
+
 @app.get("/")
 def root():
     return {"message": "RAG API is running", "version": app.version, "docs": "/docs"}
@@ -166,7 +168,10 @@ def health():
 
 @app.get("/health/langfuse")
 def health_langfuse():
-    return {"enabled": langfuse_service.enabled, "host": settings.LANGFUSE_HOST if langfuse_service.enabled else None}
+    return {
+        "enabled": langfuse_service.enabled,
+        "host": settings.LANGFUSE_HOST if langfuse_service.enabled else None,
+    }
 
 
 # Handlers below are plain `def`: embedding calls, Docling and Chroma all block,
@@ -176,20 +181,21 @@ api = APIRouter(prefix="/api", dependencies=[Depends(require_api_key), Depends(g
 
 # --- documents ----------------------------------------------------------------
 
+
 @api.post("/documents", response_model=DocumentResponse, status_code=201)
 def upload_document(
     file: UploadFile = File(...),
     folder_name: str = Form(..., description="Target collection (created if missing)"),
     doc_type: DocType = Form("general"),
-    title: Optional[str] = Form(None, max_length=200),
-    description: Optional[str] = Form(None, max_length=2000),
+    title: str | None = Form(None, max_length=200),
+    description: str | None = Form(None, max_length=2000),
     service: DocumentService = Depends(get_document_service),
 ):
     """Upload a document into a collection and index it."""
     try:
         validate_collection_name(folder_name)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return service.upload_document(
         file=file.file,
         filename=file.filename or "upload",
@@ -201,7 +207,7 @@ def upload_document(
 
 
 @api.get("/documents", response_model=DocumentListResponse)
-def list_documents(collection: Optional[str] = None, service: DocumentService = Depends(get_document_service)):
+def list_documents(collection: str | None = None, service: DocumentService = Depends(get_document_service)):
     documents = service.list_documents(collection=collection)
     return DocumentListResponse(documents=documents, total=len(documents))
 
@@ -232,6 +238,7 @@ def delete_document(document_id: str, service: DocumentService = Depends(get_doc
 
 
 # --- Q&A ----------------------------------------------------------------------
+
 
 @api.post("/qa", response_model=QAResponse, status_code=201)
 def create_qa(qa_data: QACreate, service: QAService = Depends(get_qa_service)):
@@ -264,6 +271,7 @@ def delete_qa(qa_id: str, service: QAService = Depends(get_qa_service)):
 
 # --- query --------------------------------------------------------------------
 
+
 @api.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest, service: QueryService = Depends(get_query_service)):
     """Semantic search across document collections and (optionally) Q&A pairs."""
@@ -271,6 +279,7 @@ def query(request: QueryRequest, service: QueryService = Depends(get_query_servi
 
 
 # --- collections --------------------------------------------------------------
+
 
 def _collection_response(name: str, rag: MultiCollectionRAG) -> CollectionResponse:
     coll = rag.collections[name]

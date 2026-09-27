@@ -1,19 +1,19 @@
 """Document service: upload, index, move and delete documents."""
+
 import json
 import logging
 import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import BinaryIO, Dict, List, Optional
-
-from rag_package import MultiCollectionRAG
-from rag_package.processor import SUPPORTED_EXTENSIONS
+from typing import BinaryIO
 
 from app.config import settings
 from app.models import DocumentResponse, DocumentUpdate
 from app.services.langfuse_service import langfuse_service
 from app.validation import ensure_within, safe_filename, validate_collection_name
+from rag_package import MultiCollectionRAG
+from rag_package.processor import SUPPORTED_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +33,9 @@ class DocumentService:
         state_dir = Path(settings.STATE_DIR)
         state_dir.mkdir(parents=True, exist_ok=True)
         self.registry_path = state_dir / "document_registry.json"
-        self.document_registry: Dict[str, Dict] = self._load_registry()
+        self.document_registry: dict[str, dict] = self._load_registry()
 
-    def _load_registry(self) -> Dict[str, Dict]:
+    def _load_registry(self) -> dict[str, dict]:
         if not self.registry_path.exists():
             return {}
         try:
@@ -67,8 +67,8 @@ class DocumentService:
         filename: str,
         collection_name: str,
         doc_type: str = "general",
-        title: Optional[str] = None,
-        description: Optional[str] = None,
+        title: str | None = None,
+        description: str | None = None,
     ) -> DocumentResponse:
         """Save an upload into its collection folder and index it."""
         clean_name = safe_filename(filename)
@@ -122,25 +122,25 @@ class DocumentService:
         trace.update(output={"document_id": doc_id, "chunks": chunk_count, "success": True})
         return self._to_response(self.document_registry[doc_id])
 
-    def _to_response(self, doc_data: Dict) -> DocumentResponse:
+    def _to_response(self, doc_data: dict) -> DocumentResponse:
         data = dict(doc_data)
         collection = self.rag.collections.get(data["collection"])
         if collection:
             data["chunk_count"] = collection.count_source(Path(data["source_path"]))
         return DocumentResponse(**data)
 
-    def get_document(self, document_id: str) -> Optional[DocumentResponse]:
+    def get_document(self, document_id: str) -> DocumentResponse | None:
         doc_data = self.document_registry.get(document_id)
         return self._to_response(doc_data) if doc_data else None
 
-    def list_documents(self, collection: Optional[str] = None) -> List[DocumentResponse]:
+    def list_documents(self, collection: str | None = None) -> list[DocumentResponse]:
         return [
             self._to_response(doc)
             for doc in self.document_registry.values()
             if not collection or doc["collection"] == collection
         ]
 
-    def update_document(self, document_id: str, update_data: DocumentUpdate) -> Optional[DocumentResponse]:
+    def update_document(self, document_id: str, update_data: DocumentUpdate) -> DocumentResponse | None:
         """Update metadata; changing collection_name moves and re-indexes the file."""
         doc_data = self.document_registry.get(document_id)
         if not doc_data:
@@ -191,7 +191,7 @@ class DocumentService:
         return True
 
 
-def _copy_limited(src: BinaryIO, dest: Path, max_bytes: int) -> Optional[int]:
+def _copy_limited(src: BinaryIO, dest: Path, max_bytes: int) -> int | None:
     """Stream src to dest; returns bytes written, or None if max_bytes was exceeded."""
     written = 0
     with open(dest, "wb") as out:

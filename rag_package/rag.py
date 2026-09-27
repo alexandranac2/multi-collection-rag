@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Literal, Optional
+from typing import Literal
 
 import chromadb
 from chromadb.config import Settings
@@ -19,12 +19,12 @@ EMBED_BATCH_SIZE = 256
 
 class MultiCollectionRAG:
     """Several independently chunked document collections behind one query interface."""
-    
+
     def __init__(
         self,
         chroma_persist_dir: str = "./chroma_db",
         embedding_model: str = "text-embedding-3-small",
-        openai_api_key: Optional[str] = None,
+        openai_api_key: str | None = None,
         cache_dir: str = ".",
     ):
         # Setup OpenAI
@@ -33,19 +33,18 @@ class MultiCollectionRAG:
             raise ValueError("OPENAI_API_KEY required")
         self.openai_client = OpenAI(api_key=api_key)
         self.embedding_model = embedding_model
-        
+
         # Setup ChromaDB
         self.chroma_client = chromadb.PersistentClient(
-            path=chroma_persist_dir,
-            settings=Settings(anonymized_telemetry=False)
+            path=chroma_persist_dir, settings=Settings(anonymized_telemetry=False)
         )
-        
+
         self.cache_dir = Path(cache_dir)
-        self.collections: Dict[str, CollectionManager] = {}
-    
-    def _embed_texts(self, texts: List[str]) -> List[List[float]]:
+        self.collections: dict[str, CollectionManager] = {}
+
+    def _embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Embed texts in batches (large documents can exceed one request)."""
-        embeddings: List[List[float]] = []
+        embeddings: list[list[float]] = []
         for start in range(0, len(texts), EMBED_BATCH_SIZE):
             response = self.openai_client.embeddings.create(
                 input=texts[start : start + EMBED_BATCH_SIZE],
@@ -53,7 +52,7 @@ class MultiCollectionRAG:
             )
             embeddings.extend(item.embedding for item in response.data)
         return embeddings
-    
+
     def add_collection(
         self,
         collection_name: str,
@@ -61,7 +60,7 @@ class MultiCollectionRAG:
         doc_type: Literal["manual", "policy", "contract", "general"] = "general",
         chunk_size: int = 512,
         chunking_strategy: Literal["hybrid", "hierarchical"] = "hybrid",
-        save_recognized: bool = False
+        save_recognized: bool = False,
     ):
         """Add a document collection."""
         # Create ChromaDB collection
@@ -75,7 +74,7 @@ class MultiCollectionRAG:
                 "chunking_strategy": chunking_strategy,
             },
         )
-        
+
         # Create collection manager
         self.collections[collection_name] = CollectionManager(
             collection=chroma_collection,
@@ -90,36 +89,36 @@ class MultiCollectionRAG:
         )
         logger.info("Added collection %s (%s)", collection_name, doc_type)
         return self
-    
-    def ingest_collection(self, collection_name: str, force_reindex: bool = False) -> Dict[str, int]:
+
+    def ingest_collection(self, collection_name: str, force_reindex: bool = False) -> dict[str, int]:
         """Ingest a specific collection."""
         if collection_name not in self.collections:
             raise ValueError(f"Collection {collection_name} not found")
         return self.collections[collection_name].ingest(force_reindex)
-    
+
     def ingest_all(self, force_reindex: bool = False):
         """Ingest all collections."""
         for coll in self.collections.values():
             coll.ingest(force_reindex)
-    
+
     def query(
         self,
         query_text: str,
-        collections: Optional[List[str]] = None,
-        doc_types: Optional[List[str]] = None,
-        n_results: int = 5
-    ) -> Dict[str, List[Dict]]:
+        collections: list[str] | None = None,
+        doc_types: list[str] | None = None,
+        n_results: int = 5,
+    ) -> dict[str, list[dict]]:
         """Query collections."""
         target_colls = collections or list(self.collections.keys())
-        
+
         # Build filter
         where_clause = {}
         if doc_types:
             where_clause["doc_type"] = {"$in": doc_types}
-        
+
         # Embed query
         query_embedding = self._embed_texts([query_text])[0]
-        
+
         # Query each collection
         results = {}
         for coll_name in target_colls:
@@ -127,29 +126,29 @@ class MultiCollectionRAG:
                 results[coll_name] = self.collections[coll_name].query(
                     query_embedding=query_embedding,
                     n_results=n_results,
-                    where_clause=where_clause if where_clause else None
+                    where_clause=where_clause if where_clause else None,
                 )
-        
+
         return results
-    
+
     def query_combined(
         self,
         query_text: str,
-        collections: Optional[List[str]] = None,
-        doc_types: Optional[List[str]] = None,
-        n_results: int = 5
-    ) -> List[Dict]:
+        collections: list[str] | None = None,
+        doc_types: list[str] | None = None,
+        n_results: int = 5,
+    ) -> list[dict]:
         """Query and combine results."""
         all_results = self.query(query_text, collections, doc_types, n_results)
-        
+
         # Combine and sort
         combined = []
         for results in all_results.values():
             combined.extend(results)
-        
-        combined.sort(key=lambda x: x['distance'])
+
+        combined.sort(key=lambda x: x["distance"])
         return combined[:n_results]
-    
-    def list_collections(self) -> Dict[str, int]:
+
+    def list_collections(self) -> dict[str, int]:
         """Chunk count per collection."""
         return {name: coll.count() for name, coll in self.collections.items()}

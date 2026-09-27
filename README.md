@@ -1,5 +1,7 @@
 # Multi-Collection RAG API
 
+[![tests](https://github.com/alexandranac2/multi-collection-rag/actions/workflows/tests.yml/badge.svg)](https://github.com/alexandranac2/multi-collection-rag/actions/workflows/tests.yml)
+
 A document search service for mixed internal documents — manuals, policies,
 contracts — where each document type gets its own collection and chunking, and
 curated Q&A answers compete with document passages in a single ranked result.
@@ -85,6 +87,7 @@ curl -H 'Content-Type: application/json' localhost:8000/api/query \
 ```bash
 pip install -r requirements-dev.txt
 pytest -q
+ruff check . && ruff format --check .
 ```
 
 38 tests run against **real Chroma and real Docling** with OpenAI embeddings replaced
@@ -93,12 +96,30 @@ traversal and upload limits, API-key auth, error redaction, ingestion and
 re-indexing, filename collisions, moving and deleting documents, restart
 persistence, filtering, and Q&A ranking against documents.
 
+## Retrieval eval
+
+`evals/` holds a small fictional corpus — an employee handbook, a router manual and
+a services agreement, one collection each — and 20 labelled questions phrased the
+way people actually ask ("How long is maternity leave?" for a section titled
+*Parental leave*). For each chunking strategy it reports whether the right document
+and a chunk containing the expected answer are ranked 1st / in the top 3, plus MRR.
+
+```bash
+python -m evals.retrieval_eval                    # real embeddings, needs OPENAI_API_KEY (~$0.001)
+python -m evals.retrieval_eval --fake-embeddings  # offline check that the harness runs
+```
+
+On this corpus every section fits inside one chunk, so both strategies produce the
+same chunks; the comparison becomes informative with longer documents. CI runs the
+eval when the repository has an `OPENAI_API_KEY` secret.
+
 ## Layout
 
 ```
 app/            FastAPI app: routes, settings, validation, services
 rag_package/    the reusable library (collections, Docling processing, chunkers, cache)
 examples/       using rag_package without the API
+evals/          labelled retrieval eval + fictional corpus
 tests/
 ```
 

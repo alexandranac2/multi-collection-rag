@@ -4,6 +4,7 @@ Using rag_package directly, without the API.
 Expects folders of documents under ./documents/<collection>/ and OPENAI_API_KEY
 in the environment. Run from the repo root: python -m examples.library_usage
 """
+
 import logging
 
 from rag_package import MultiCollectionRAG

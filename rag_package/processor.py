@@ -1,7 +1,6 @@
 import logging
 import tempfile
 from pathlib import Path
-from typing import Dict, List
 
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
@@ -50,7 +49,7 @@ class DocumentProcessor:
         doc_type: str,
         collection_name: str,
         save_recognized: bool = False,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Convert and chunk one document. Returns [{"text", "metadata"}, ...]."""
         document = self._convert(file_path)
 
@@ -77,7 +76,7 @@ class DocumentProcessor:
         return chunks
 
     @staticmethod
-    def get_supported_extensions() -> List[str]:
+    def get_supported_extensions() -> list[str]:
         return list(SUPPORTED_EXTENSIONS)
 
 

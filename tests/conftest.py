@@ -2,6 +2,7 @@
 Tests run against real Chroma and real Docling, with OpenAI embeddings replaced
 by a deterministic bag-of-words hash, so no API key or network is needed.
 """
+
 import hashlib
 import math
 import os

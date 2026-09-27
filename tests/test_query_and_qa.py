@@ -30,7 +30,11 @@ def test_curated_qa_competes_with_documents(client):
     upload(client, "setup.txt", SETUP_TXT)
     qa = client.post(
         "/api/qa",
-        json={"question": "How many vacation days do I get?", "answer": "25 per year.", "tags": ["hr", "leave"]},
+        json={
+            "question": "How many vacation days do I get?",
+            "answer": "25 per year.",
+            "tags": ["hr", "leave"],
+        },
     ).json()
 
     body = client.post("/api/query", json={"query_text": "vacation days do I get"}).json()

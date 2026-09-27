@@ -1,0 +1,25 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      # Docling pulls in torch; CPU wheels keep the install small
+      - run: pip install -r requirements-dev.txt --extra-index-url https://download.pytorch.org/whl/cpu
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -q
+      # Real-embedding eval runs only when the repo has an OPENAI_API_KEY secret
+      - if: env.OPENAI_API_KEY != ''
+        run: python -m evals.retrieval_eval

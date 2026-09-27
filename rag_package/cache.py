@@ -1,7 +1,6 @@
 import hashlib
 import json
 from pathlib import Path
-from typing import Dict, Optional
 
 
 class CacheManager:
@@ -11,9 +10,9 @@ class CacheManager:
         self.cache_file = cache_file
         self.cache = self._load()
 
-    def _load(self) -> Dict[str, str]:
+    def _load(self) -> dict[str, str]:
         if self.cache_file.exists():
-            with open(self.cache_file, "r") as f:
+            with open(self.cache_file) as f:
                 return json.load(f)
         return {}
 
@@ -21,7 +20,7 @@ class CacheManager:
         with open(self.cache_file, "w") as f:
             json.dump(self.cache, f, indent=2)
 
-    def get(self, key: str) -> Optional[str]:
+    def get(self, key: str) -> str | None:
         return self.cache.get(key)
 
     def set(self, key: str, value: str) -> None:

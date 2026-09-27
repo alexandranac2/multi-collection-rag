@@ -1,4 +1,5 @@
 """Input rules for anything that becomes a path on disk or a Chroma collection name."""
+
 import re
 from pathlib import Path
 from typing import Annotated

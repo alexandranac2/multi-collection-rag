@@ -1,0 +1,9 @@
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[lint.flake8-bugbear]
+# FastAPI's dependency-injection idiom: Depends()/Query()/File()/Form() in defaults
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.File", "fastapi.Form", "fastapi.Header"]

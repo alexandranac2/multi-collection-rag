@@ -1,7 +1,7 @@
 """Q&A service: curated question/answer pairs stored as vectors next to the documents."""
+
 import uuid
 from datetime import datetime
-from typing import Dict, List, Optional
 
 from app.config import settings
 from app.models import QACreate, QAResponse
@@ -17,11 +17,11 @@ class QAService:
             metadata={"hnsw:space": "cosine", "doc_type": "qa"},
         )
 
-    def _embed_text(self, text: str) -> List[float]:
+    def _embed_text(self, text: str) -> list[float]:
         return self.rag._embed_texts([text])[0]
 
     @staticmethod
-    def _to_response(qa_id: str, metadata: Dict) -> QAResponse:
+    def _to_response(qa_id: str, metadata: dict) -> QAResponse:
         tags = metadata.get("tags", "")
         return QAResponse(
             id=qa_id,
@@ -54,15 +54,15 @@ class QAService:
         trace.update(output={"qa_id": qa_id, "success": True})
         return self._to_response(qa_id, metadata)
 
-    def get_qa(self, qa_id: str) -> Optional[QAResponse]:
+    def get_qa(self, qa_id: str) -> QAResponse | None:
         result = self.qa_collection.get(ids=[qa_id])
         if not result["ids"]:
             return None
         return self._to_response(qa_id, result["metadatas"][0])
 
-    def list_qa(self, limit: int = 100, offset: int = 0) -> List[QAResponse]:
+    def list_qa(self, limit: int = 100, offset: int = 0) -> list[QAResponse]:
         result = self.qa_collection.get(limit=limit, offset=offset)
-        return [self._to_response(qa_id, meta) for qa_id, meta in zip(result["ids"], result["metadatas"])]
+        return [self._to_response(qa_id, meta) for qa_id, meta in zip(result["ids"], result["metadatas"], strict=True)]
 
     def delete_qa(self, qa_id: str) -> bool:
         if not self.qa_collection.get(ids=[qa_id], include=[])["ids"]:
@@ -70,7 +70,7 @@ class QAService:
         self.qa_collection.delete(ids=[qa_id])
         return True
 
-    def query_qa(self, query_text: str, n_results: int = 5) -> List[Dict]:
+    def query_qa(self, query_text: str, n_results: int = 5) -> list[dict]:
         """Nearest Q&A pairs to the query (cosine distance, lower = closer)."""
         if self.qa_collection.count() == 0:
             return []
@@ -81,7 +81,10 @@ class QAService:
 
         results = self.qa_collection.query(query_embeddings=[query_embedding], n_results=n_results)
         langfuse_service.track_retrieval(
-            trace=trace, query=query_text, results_count=len(results["ids"][0]), collection=self.collection_name
+            trace=trace,
+            query=query_text,
+            results_count=len(results["ids"][0]),
+            collection=self.collection_name,
         )
         return [
             {

@@ -1,13 +1,12 @@
 """Query service: one ranked answer list across document collections and Q&A pairs."""
+
 import logging
 from pathlib import Path
-from typing import List
-
-from rag_package import MultiCollectionRAG
 
 from app.models import DocumentCitation, QACitation, QueryRequest, QueryResponse, QueryResult
 from app.services.langfuse_service import langfuse_service
 from app.services.qa_service import QAService
+from rag_package import MultiCollectionRAG
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +57,7 @@ class QueryService:
             trace.update(output={"success": False, "error": type(exc).__name__})
             raise
 
-    def _search_documents(self, request: QueryRequest) -> List[QueryResult]:
+    def _search_documents(self, request: QueryRequest) -> list[QueryResult]:
         if not self.rag.collections:
             return []
 
@@ -96,7 +95,7 @@ class QueryService:
             )
         return results
 
-    def _search_qa(self, request: QueryRequest) -> List[QueryResult]:
+    def _search_qa(self, request: QueryRequest) -> list[QueryResult]:
         results = []
         for hit in self.qa_service.query_qa(query_text=request.query_text, n_results=request.n_results):
             metadata = hit.get("metadata", {})

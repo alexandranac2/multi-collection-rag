@@ -1,7 +1,8 @@
 """Optional LangFuse tracing. Every method is a safe no-op when tracing is off."""
+
 import logging
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.config import settings
 from app.context import get_user_id
@@ -17,7 +18,7 @@ except ImportError:  # tracing is optional
 class MockTrace:
     """Stands in for a LangFuse trace so callers never need to branch."""
 
-    def __init__(self, trace_id: Optional[str] = None):
+    def __init__(self, trace_id: str | None = None):
         self.id = trace_id or str(uuid.uuid4())
 
     def update(self, **kwargs):
@@ -59,7 +60,7 @@ class LangFuseService:
         except Exception:
             logger.exception("LangFuse initialisation failed; tracing disabled")
 
-    def create_trace(self, name: str, user_id: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None):
+    def create_trace(self, name: str, user_id: str | None = None, metadata: dict[str, Any] | None = None):
         if not self.enabled:
             return MockTrace()
         try:
@@ -68,7 +69,7 @@ class LangFuseService:
             logger.warning("Could not create LangFuse trace %r", name, exc_info=True)
             return MockTrace()
 
-    def create_span(self, trace, name: str, metadata: Optional[Dict[str, Any]] = None):
+    def create_span(self, trace, name: str, metadata: dict[str, Any] | None = None):
         if not self.enabled:
             return None
         try:
@@ -77,7 +78,7 @@ class LangFuseService:
             logger.warning("Could not create LangFuse span %r", name, exc_info=True)
             return None
 
-    def track_embedding(self, trace, texts: List[str], model: str, usage: Optional[Dict] = None):
+    def track_embedding(self, trace, texts: list[str], model: str, usage: dict | None = None):
         if not self.enabled:
             return
         try:
@@ -91,7 +92,7 @@ class LangFuseService:
         except Exception:
             logger.warning("Could not track embedding in LangFuse", exc_info=True)
 
-    def track_retrieval(self, trace, query: str, results_count: int, collection: str, metadata: Optional[Dict] = None):
+    def track_retrieval(self, trace, query: str, results_count: int, collection: str, metadata: dict | None = None):
         if not self.enabled:
             return None
         try:
@@ -104,7 +105,7 @@ class LangFuseService:
             logger.warning("Could not track retrieval in LangFuse", exc_info=True)
             return None
 
-    def track_query(self, trace, query_text: str, results: List[Dict], metadata: Optional[Dict] = None):
+    def track_query(self, trace, query_text: str, results: list[dict], metadata: dict | None = None):
         if not self.enabled:
             return
         try:

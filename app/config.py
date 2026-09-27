@@ -1,5 +1,4 @@
 """Configuration management for the RAG API."""
-from typing import List, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,8 +13,8 @@ class Settings(BaseSettings):
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
 
     # LangFuse (optional: tracing is off unless both keys are set)
-    LANGFUSE_PUBLIC_KEY: Optional[str] = None
-    LANGFUSE_SECRET_KEY: Optional[str] = None
+    LANGFUSE_PUBLIC_KEY: str | None = None
+    LANGFUSE_SECRET_KEY: str | None = None
     LANGFUSE_HOST: str = "https://cloud.langfuse.com"
 
     # Storage
@@ -26,8 +25,8 @@ class Settings(BaseSettings):
     QA_COLLECTION_NAME: str = "qa_history"
 
     # Security
-    API_KEY: Optional[str] = None  # when set, every /api route requires X-API-Key
-    CORS_ORIGINS: List[str] = ["*"]
+    API_KEY: str | None = None  # when set, every /api route requires X-API-Key
+    CORS_ORIGINS: list[str] = ["*"]
     MAX_UPLOAD_MB: int = 25
 
     LOG_LEVEL: str = "INFO"

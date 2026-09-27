@@ -1,7 +1,6 @@
 import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from .cache import CacheManager
 from .processor import DocumentProcessor
@@ -37,7 +36,7 @@ class CollectionManager:
         self.cache = CacheManager(cache_dir / f".{collection_name}_cache.json")
         self.processor = DocumentProcessor()
 
-    def ingest(self, force_reindex: bool = False) -> Dict[str, int]:
+    def ingest(self, force_reindex: bool = False) -> dict[str, int]:
         """
         Ingest every supported file under docs_path.
 
@@ -122,10 +121,10 @@ class CollectionManager:
 
     def query(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         n_results: int = 5,
-        where_clause: Optional[Dict] = None,
-    ) -> List[Dict]:
+        where_clause: dict | None = None,
+    ) -> list[dict]:
         """Nearest chunks in this collection (cosine distance, lower = closer)."""
         results = self.collection.query(
             query_embeddings=[query_embedding],
