@@ -3,25 +3,18 @@ from typing import List, Optional, Literal, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
 
+from app.validation import CollectionName
+
+DocType = Literal["manual", "policy", "contract", "general"]
+
 
 # Document Models
-class DocumentCreate(BaseModel):
-    """Model for document upload."""
-    folder_name: str = Field(..., description="Collection name (folder name)")
-    doc_type: Literal["manual", "policy", "contract", "general"] = Field(
-        default="general",
-        description="Document type"
-    )
-    title: Optional[str] = Field(None, description="Document title")
-    description: Optional[str] = Field(None, description="Document description")
-
-
 class DocumentUpdate(BaseModel):
     """Model for document metadata update."""
     title: Optional[str] = None
     description: Optional[str] = None
-    doc_type: Optional[Literal["manual", "policy", "contract", "general"]] = None
-    collection_name: Optional[str] = None
+    doc_type: Optional[DocType] = None
+    collection_name: Optional[CollectionName] = None
 
 
 class DocumentResponse(BaseModel):
@@ -47,8 +40,8 @@ class DocumentListResponse(BaseModel):
 # Q&A Models
 class QACreate(BaseModel):
     """Model for Q&A pair creation."""
-    question: str = Field(..., description="Question text")
-    answer: str = Field(..., description="Answer text")
+    question: str = Field(..., min_length=1, max_length=2000, description="Question text")
+    answer: str = Field(..., min_length=1, max_length=10000, description="Answer text")
     tags: Optional[List[str]] = Field(default_factory=list, description="Optional tags")
     category: Optional[str] = Field(None, description="Optional category")
 
@@ -73,12 +66,12 @@ class QAListResponse(BaseModel):
 # Query Models
 class QueryRequest(BaseModel):
     """Model for query request."""
-    query_text: str = Field(..., description="Query text")
+    query_text: str = Field(..., min_length=1, max_length=2000, description="Query text")
     collections: Optional[List[str]] = Field(
         None,
         description="Specific collections to search (optional)"
     )
-    doc_types: Optional[List[str]] = Field(
+    doc_types: Optional[List[DocType]] = Field(
         None,
         description="Specific document types to filter (optional)"
     )
@@ -137,16 +130,15 @@ class QueryResponse(BaseModel):
 # Collection Models
 class CollectionCreate(BaseModel):
     """Model for collection creation."""
-    collection_name: str = Field(..., description="Collection name")
-    doc_type: Literal["manual", "policy", "contract", "general"] = Field(
+    collection_name: CollectionName = Field(..., description="Collection name (also its folder name)")
+    doc_type: DocType = Field(
         default="general",
         description="Default document type for this collection"
     )
-    chunk_size: int = Field(default=512, ge=100, le=2000)
-    chunk_overlap: int = Field(default=128, ge=0, le=500)
+    chunk_size: int = Field(default=512, ge=100, le=2000, description="Max tokens per chunk (hybrid only)")
     chunking_strategy: Literal["hybrid", "hierarchical"] = Field(
         default="hybrid",
-        description="Chunking strategy"
+        description="hybrid: structure-aware, capped at chunk_size tokens. hierarchical: one chunk per section/paragraph",
     )
 
 
